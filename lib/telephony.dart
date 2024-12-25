@@ -6,7 +6,6 @@ import 'package:flutter/widgets.dart';
 import 'package:platform/platform.dart';
 
 part 'constants.dart';
-
 part 'filter.dart';
 
 typedef MessageHandler(SmsMessage message);
@@ -558,7 +557,21 @@ class Telephony {
     final Map<String, dynamic> args = {"phoneNumber": phoneNumber};
     await _foregroundChannel.invokeMethod(DIAL_PHONE_NUMBER, args);
   }
+
+  /// stream the incoming sms events
+  Stream<SmsMessage> get smsStream {
+    if (_platform.isAndroid) {
+      _stream ??= _eventChannel.receiveBroadcastStream().map<SmsMessage>(
+            (event) => SmsMessage.fromMap(event, INCOMING_SMS_COLUMNS),
+          );
+      return _stream!;
+    }
+    throw Exception("Notifications API exclusively available on Android!");
+  }
 }
+
+Stream<SmsMessage>? _stream;
+const EventChannel _eventChannel = EventChannel('zotov-dev/sms_event');
 
 ///
 /// Represents a message returned by one of the query functions such as

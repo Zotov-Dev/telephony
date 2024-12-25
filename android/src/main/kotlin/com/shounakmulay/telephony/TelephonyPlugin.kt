@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.NonNull
 import com.shounakmulay.telephony.sms.IncomingSmsHandler
 import com.shounakmulay.telephony.utils.Constants.CHANNEL_SMS
+import com.shounakmulay.telephony.utils.Constants.CHANNEL_EVENT_SMS
 import com.shounakmulay.telephony.sms.IncomingSmsReceiver
 import com.shounakmulay.telephony.sms.SmsController
 import com.shounakmulay.telephony.sms.SmsMethodCallHandler
@@ -16,6 +17,8 @@ import io.flutter.plugin.common.*
 class TelephonyPlugin : FlutterPlugin, ActivityAware {
 
   private lateinit var smsChannel: MethodChannel
+
+  private lateinit var eventSMSChannel: EventChannel
 
   private lateinit var smsMethodCallHandler: SmsMethodCallHandler
 
@@ -63,11 +66,16 @@ class TelephonyPlugin : FlutterPlugin, ActivityAware {
     smsChannel = MethodChannel(messenger, CHANNEL_SMS)
     smsChannel.setMethodCallHandler(smsMethodCallHandler)
     smsMethodCallHandler.setForegroundChannel(smsChannel)
+
+    eventSMSChannel = EventChannel(messenger, CHANNEL_EVENT_SMS)
+    eventSMSChannel.setStreamHandler(IncomingSmsHandler)
+   
   }
 
   private fun tearDownPlugin() {
     IncomingSmsReceiver.foregroundSmsChannel = null
     smsChannel.setMethodCallHandler(null)
+    eventSMSChannel.setStreamHandler(null)
   }
 
 }

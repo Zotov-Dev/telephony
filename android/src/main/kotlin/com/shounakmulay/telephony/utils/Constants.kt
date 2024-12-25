@@ -9,6 +9,8 @@ object Constants {
   const val CHANNEL_SMS = "plugins.shounakmulay.com/foreground_sms_channel"
   const val CHANNEL_SMS_BACKGROUND = "plugins.shounakmulay.com/background_sms_channel"
 
+  const val CHANNEL_EVENT_SMS = "zotov-dev/sms_event"
+
   // Intent Actions
   const val ACTION_SMS_SENT = "plugins.shounakmulay.intent.ACTION_SMS_SENT"
   const val ACTION_SMS_DELIVERED = "plugins.shounakmulay.intent.ACTION_SMS_DELIVERED"

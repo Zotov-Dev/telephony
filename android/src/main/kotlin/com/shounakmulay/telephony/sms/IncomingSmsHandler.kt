@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Process
 import android.provider.Telephony
 import android.telephony.SmsMessage
+import android.util.Log
 import com.shounakmulay.telephony.utils.Constants
 import com.shounakmulay.telephony.utils.Constants.HANDLE
 import com.shounakmulay.telephony.utils.Constants.HANDLE_BACKGROUND_MESSAGE
@@ -30,6 +31,7 @@ import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.embedding.engine.loader.FlutterLoader
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import io.flutter.view.FlutterCallbackInformation
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -43,8 +45,10 @@ class IncomingSmsReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
+        Log.d("IncomingSmsReceiver", "onReceive called")
         ContextHolder.applicationContext = context.applicationContext
         val smsList = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+        Log.d("IncomingSmsReceiver", "Received ${smsList.size} SMS messages")
         val messagesGroupedByOriginatingAddress = smsList.groupBy { it.originatingAddress }
         messagesGroupedByOriginatingAddress.forEach { group ->
             processIncomingSms(context, group.value)
@@ -62,6 +66,7 @@ class IncomingSmsReceiver : BroadcastReceiver() {
      *
      */
     private fun processIncomingSms(context: Context, smsList: List<SmsMessage>) {
+        Log.d("IncomingSmsReceiver", "processIncomingSms called")
         val messageMap = smsList.first().toMap()
         smsList.forEachIndexed { index, smsMessage ->
             if (index > 0) {
@@ -69,24 +74,35 @@ class IncomingSmsReceiver : BroadcastReceiver() {
                     .plus(smsMessage.messageBody.trim())
             }
         }
+                // Отправка сообщения в стрим
+        IncomingSmsHandler.sendSmsToStream(messageMap)
+        Log.d("IncomingSmsReceiver", "Message map created: $messageMap")
         if (IncomingSmsHandler.isApplicationForeground(context)) {
+            Log.d("IncomingSmsReceiver", "Application is in foreground")
             val args = HashMap<String, Any>()
             args[MESSAGE] = messageMap
             foregroundSmsChannel?.invokeMethod(ON_MESSAGE, args)
         } else {
+            Log.d("IncomingSmsReceiver", "Application is in background")
             val preferences =
                 context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
             val disableBackground =
                 preferences.getBoolean(SHARED_PREFS_DISABLE_BACKGROUND_EXE, false)
             if (!disableBackground) {
+                Log.d("IncomingSmsReceiver", "Processing in background")
                 processInBackground(context, messageMap)
+            } else {
+                Log.d("IncomingSmsReceiver", "Background processing is disabled")
             }
         }
+
     }
 
     private fun processInBackground(context: Context, sms: HashMap<String, Any?>) {
+        Log.d("IncomingSmsReceiver", "processInBackground called")
         IncomingSmsHandler.apply {
             if (!isIsolateRunning.get()) {
+                Log.d("IncomingSmsReceiver", "Isolate is not running, initializing")
                 initialize(context)
                 val preferences =
                     context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -94,7 +110,9 @@ class IncomingSmsReceiver : BroadcastReceiver() {
                     preferences.getLong(SHARED_PREFS_BACKGROUND_SETUP_HANDLE, 0)
                 startBackgroundIsolate(context, backgroundCallbackHandle)
                 backgroundMessageQueue.add(sms)
+                Log.d("IncomingSmsReceiver", "Added SMS to background message queue")
             } else {
+                Log.d("IncomingSmsReceiver", "Isolate is running, executing Dart callback")
                 executeDartCallbackInBackgroundIsolate(context, sms)
             }
         }
@@ -113,6 +131,7 @@ fun SmsMessage.toMap(): HashMap<String, Any?> {
         smsMap[STATUS] = status.toString()
         smsMap[SERVICE_CENTER_ADDRESS] = serviceCenterAddress
     }
+    Log.d("SmsMessage", "Converted SMS to map: $smsMap")
     return smsMap
 }
 
@@ -125,11 +144,13 @@ fun SmsMessage.toMap(): HashMap<String, Any?> {
  * Will throw [RuntimeException] if [backgroundChannel] was not initialized by calling [startBackgroundIsolate]
  * before calling [executeDartCallbackInBackgroundIsolate]
  */
-object IncomingSmsHandler : MethodChannel.MethodCallHandler {
+object IncomingSmsHandler : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
     internal val backgroundMessageQueue =
         Collections.synchronizedList(mutableListOf<HashMap<String, Any?>>())
     internal var isIsolateRunning = AtomicBoolean(false)
+
+    private var eventSink: EventChannel.EventSink? = null
 
     private lateinit var backgroundChannel: MethodChannel
     private lateinit var backgroundFlutterEngine: FlutterEngine
@@ -144,6 +165,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
      * Also initializes the method channel on the android side
      */
     fun startBackgroundIsolate(context: Context, callbackHandle: Long) {
+        Log.d("IncomingSmsHandler", "startBackgroundIsolate called with handle: $callbackHandle")
         val appBundlePath = flutterLoader.findAppBundlePath()
         val flutterCallback = FlutterCallbackInformation.lookupCallbackInformation(callbackHandle)
 
@@ -156,6 +178,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
         backgroundChannel =
             MethodChannel(backgroundFlutterEngine.dartExecutor, Constants.CHANNEL_SMS_BACKGROUND)
         backgroundChannel.setMethodCallHandler(this)
+        Log.d("IncomingSmsHandler", "Background isolate started")
     }
 
     /**
@@ -165,6 +188,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
      * all those messages.
      */
     fun onChannelInitialized(applicationContext: Context) {
+        Log.d("IncomingSmsHandler", "onChannelInitialized called")
         isIsolateRunning.set(true)
         synchronized(backgroundMessageQueue) {
 
@@ -175,6 +199,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
                 executeDartCallbackInBackgroundIsolate(applicationContext, iterator.next())
             }
             backgroundMessageQueue.clear()
+            Log.d("IncomingSmsHandler", "Processed all queued messages")
         }
     }
 
@@ -185,6 +210,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
         context: Context,
         message: HashMap<String, Any?>
     ) {
+        Log.d("IncomingSmsHandler", "executeDartCallbackInBackgroundIsolate called with message: $message")
         if (!this::backgroundChannel.isInitialized) {
             throw RuntimeException(
                 "setBackgroundChannel was not called before messages came in, exiting."
@@ -198,6 +224,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
         args[HANDLE] = backgroundMessageHandle
         args[MESSAGE] = message
         backgroundChannel.invokeMethod(HANDLE_BACKGROUND_MESSAGE, args)
+        Log.d("IncomingSmsHandler", "Dart callback executed")
     }
 
     /**
@@ -207,13 +234,16 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
      * Should be called before invoking any other background methods.
      */
     internal fun initialize(context: Context) {
+        Log.d("IncomingSmsHandler", "initialize called")
         val flutterInjector = FlutterInjector.instance()
         flutterLoader = flutterInjector.flutterLoader()
         flutterLoader.startInitialization(context)
         flutterLoader.ensureInitializationComplete(context.applicationContext, null)
+        Log.d("IncomingSmsHandler", "FlutterLoader initialized")
     }
 
     fun setBackgroundMessageHandle(context: Context, handle: Long) {
+        Log.d("IncomingSmsHandler", "setBackgroundMessageHandle called with handle: $handle")
         backgroundMessageHandle = handle
 
         // Store background message handle in shared preferences so it can be retrieved
@@ -225,6 +255,7 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
     }
 
     fun setBackgroundSetupHandle(context: Context, setupBackgroundHandle: Long) {
+        Log.d("IncomingSmsHandler", "setBackgroundSetupHandle called with handle: $setupBackgroundHandle")
         // Store background setup handle in shared preferences so it can be retrieved
         // by other application instances.
         val preferences =
@@ -234,14 +265,18 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
     }
 
     private fun getBackgroundMessageHandle(context: Context): Long {
-        return context
+        val handle = context
             .getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
             .getLong(SHARED_PREFS_BACKGROUND_MESSAGE_HANDLE, 0)
+        Log.d("IncomingSmsHandler", "getBackgroundMessageHandle returned: $handle")
+        return handle
     }
 
     fun isApplicationForeground(context: Context): Boolean {
+        Log.d("IncomingSmsHandler", "isApplicationForeground called")
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         if (keyguardManager.isKeyguardLocked) {
+            Log.d("IncomingSmsHandler", "Keyguard is locked")
             return false
         }
         val myPid = Process.myPid()
@@ -251,19 +286,38 @@ object IncomingSmsHandler : MethodChannel.MethodCallHandler {
             for (aList in list) {
                 var info: ActivityManager.RunningAppProcessInfo
                 if (aList.also { info = it }.pid == myPid) {
-                    return info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                    val isForeground = info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                    Log.d("IncomingSmsHandler", "Application is in foreground: $isForeground")
+                    return isForeground
                 }
             }
         }
+        Log.d("IncomingSmsHandler", "Application is not in foreground")
         return false
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        Log.d("IncomingSmsHandler", "onMethodCall called with method: ${call.method}")
         if (SmsAction.fromMethod(call.method) == SmsAction.BACKGROUND_SERVICE_INITIALIZED) {
             onChannelInitialized(
                 ContextHolder.applicationContext
                     ?: throw RuntimeException("Context not initialised!")
             )
         }
+    }
+
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        Log.d("IncomingSmsHandler", "onListen called")
+        eventSink = events
+    }
+
+    override fun onCancel(arguments: Any?) {
+        Log.d("IncomingSmsHandler", "onCancel called")
+        eventSink = null
+    }
+
+    fun sendSmsToStream(sms: HashMap<String, Any?>) {
+        Log.d("IncomingSmsHandler", "sendSmsToStream called with sms: $sms")
+        eventSink?.success(sms)
     }
 }
