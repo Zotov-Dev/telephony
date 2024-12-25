@@ -76,6 +76,7 @@ class IncomingSmsReceiver : BroadcastReceiver() {
         }
                 // Отправка сообщения в стрим
         IncomingSmsHandler.sendSmsToStream(messageMap)
+        return
         Log.d("IncomingSmsReceiver", "Message map created: $messageMap")
         if (IncomingSmsHandler.isApplicationForeground(context)) {
             Log.d("IncomingSmsReceiver", "Application is in foreground")

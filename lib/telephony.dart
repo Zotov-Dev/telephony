@@ -96,6 +96,8 @@ class Telephony {
   /// ignored if [onBackgroundMessage] is not set.
   ///
   ///
+  ///
+  @Deprecated('Use `smsStream` instead.')
   void listenIncomingSms(
       {required MessageHandler onNewMessage,
       MessageHandler? onBackgroundMessage,
