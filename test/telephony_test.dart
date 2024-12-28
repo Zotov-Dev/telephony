@@ -1,12 +1,12 @@
 import 'dart:collection';
 
+import "package:another_telephony/telephony.dart";
+import 'package:collection/collection.dart';
 import "package:flutter/services.dart";
 import "package:flutter_test/flutter_test.dart";
 import 'package:mockito/annotations.dart';
 import "package:mockito/mockito.dart";
 import "package:platform/platform.dart";
-import "package:another_telephony/telephony.dart";
-import 'package:collection/collection.dart';
 
 import 'mocks/messages.dart';
 import 'telephony_test.mocks.dart';
@@ -107,6 +107,14 @@ main() {
         final name = await telephony.simOperator;
         verify(methodChannel.invokeMethod(GET_SIM_OPERATOR)).called(1);
         expect(name, "operator");
+      });
+
+      test("phone number1", () async {
+        when(methodChannel.invokeMethod(GET_PHONE_NUMBER1))
+            .thenAnswer((_) => Future<String>.value("1234567890"));
+        final number = await telephony.phoneNumber1;
+        verify(methodChannel.invokeMethod(GET_PHONE_NUMBER1)).called(1);
+        expect(number, "1234567890");
       });
 
       test("phone type", () async {

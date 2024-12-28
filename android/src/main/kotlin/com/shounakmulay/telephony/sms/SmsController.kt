@@ -232,6 +232,10 @@ class SmsController(private val context: Context) {
     fun getSimOperatorName(): String {
         return getTelephonyManager().simOperatorName
     }
+    
+    fun getPhoneNumber1(): String? {
+        return getTelephonyManager().line1Number
+    }
 
     fun getSimState(): Int {
         return getTelephonyManager().simState

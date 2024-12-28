@@ -244,8 +244,9 @@ class SmsMethodCallHandler(
         SmsAction.GET_NETWORK_OPERATOR_NAME -> getNetworkOperatorName()
         SmsAction.GET_DATA_NETWORK_TYPE -> getDataNetworkType()
         SmsAction.GET_PHONE_TYPE -> getPhoneType()
-        SmsAction.GET_SIM_OPERATOR -> getSimOperator()
+        SmsAction.GET_SIM_OPERATOR -> getSimOperator  ()
         SmsAction.GET_SIM_OPERATOR_NAME -> getSimOperatorName()
+        SmsAction.GET_PHONE_NUMBER1 -> getPhoneNumber1() ?: ""
         SmsAction.GET_SIM_STATE -> getSimState()
         SmsAction.IS_NETWORK_ROAMING -> isNetworkRoaming()
         SmsAction.GET_SIGNAL_STRENGTH -> {
@@ -338,6 +339,7 @@ class SmsMethodCallHandler(
       SmsAction.GET_PHONE_TYPE,
       SmsAction.GET_SIM_OPERATOR,
       SmsAction.GET_SIM_OPERATOR_NAME,
+      SmsAction.GET_PHONE_NUMBER1,
       SmsAction.GET_SIM_STATE,
       SmsAction.IS_NETWORK_ROAMING,
       SmsAction.GET_SIGNAL_STRENGTH,

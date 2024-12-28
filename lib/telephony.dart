@@ -464,6 +464,9 @@ class Telephony {
   Future<String?> get simOperatorName =>
       _foregroundChannel.invokeMethod<String>(GET_SIM_OPERATOR_NAME);
 
+  Future<String?> get phoneNumber1 =>
+      _foregroundChannel.invokeMethod<String>(GET_PHONE_NUMBER1);
+
   ///
   /// Returns a constant indicating the state of the default SIM card.
   ///
